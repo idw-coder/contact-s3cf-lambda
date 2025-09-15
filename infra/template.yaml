@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "contact-s3cf-lambda minimal stack (scaffold)"
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: "contact"
+  Stage:
+    Type: String
+    Default: "dev"
+
+Resources:
+  # 次のステップで S3 / CloudFront / Lambda / API Gateway を実装します
+
+Outputs: {}
