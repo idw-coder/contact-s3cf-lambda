@@ -1,5 +1,5 @@
 /**
- * backend/index.mts  （TypeScript / ESM）
+ * backend/index.ts  （TypeScript / ESM）
  *
  * 目的：
  *  - API Gateway からのリクエスト（/submit, POST）を受け取り、
@@ -22,6 +22,7 @@ interface ApiEvent {
   httpMethod?: string; // REST APIのパターン
   requestContext?: {   // HTTP API (v2) のパターン
     http?: { method?: string }
+    requestId?: string;
   };
   body?: string | null;
 }
@@ -54,9 +55,16 @@ function json(statusCode: number, bodyObj: unknown): ApiResponse {
   };
 }
 
+// --- 簡単なバリデーション -----------------------------------------------
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 // --- メインハンドラ ------------------------------------------------------
 export const handler = async (event: ApiEvent): Promise<ApiResponse> => {
   try {
+    console.log('Request:', { requestId: event?.requestContext?.requestId });
+
     // メソッド判定：REST(API v1) と HTTP API(v2) の両方に配慮
     const method: HttpMethod =
       event?.httpMethod || event?.requestContext?.http?.method || "GET";
@@ -78,6 +86,14 @@ export const handler = async (event: ApiEvent): Promise<ApiResponse> => {
     const { name, email, message } = body;
     if (!name || !email || !message) {
       return json(400, { error: "name, email, message は必須です" });
+    }
+
+    // バリデーション
+    if (!isValidEmail(email)) {
+      return json(400, { error: "有効なメールアドレスを入力してください" });
+    }
+    if (name.length > 100 || message.length > 1000) {
+      return json(400, { error: "入力内容が長すぎます" });
     }
 
     // 本処理（ダミー）
