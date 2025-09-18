@@ -24,14 +24,34 @@ Resources:
           - Effect: Allow
             Principal:
               Federated: arn:aws:iam::238700230085:oidc-provider/token.actions.githubusercontent.com
-            Action: sts:AssumeRole
+            Action: sts:AssumeRoleWithWebIdentity
             Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
               StringLike:
                 "token.actions.githubusercontent.com:sub": 
                   - !Sub "repo:${GitHubOrg}/${GitHubRepo}:*"
-      # フル権限（本番では絞る）
+
+      # ベースは PowerUserAccess（IAM操作が除外されている）
+      # そこに IAM を扱うための最小権限を追加
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/PowerUserAccess
+      Policies:
+        - PolicyName: AllowIAMForCfn
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:PassRole
+                Resource: "*"
 
 Outputs:
   # 後でGitHub Secretsに設定するロールARN
