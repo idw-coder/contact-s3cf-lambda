@@ -1,3 +1,4 @@
+# CloudFormationテンプレートファイル です。
 # GitHub ActionsからAWSにアクセスするためのIAMロール作成
 # 一度だけ手動でデプロイすればOK
 #
