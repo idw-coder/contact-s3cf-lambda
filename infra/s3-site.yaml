@@ -1,22 +1,30 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "S3 static website (minimal)"
+Description: "S3 static website (minimal, policy-public)"
+
+# 目的
+# - S3 に静的サイト用バケットを作成
+# - index.html / error.html をエントリに設定
+# - 近年の S3 既定 (BucketOwnerEnforced) 前提で ACL は使わず、バケットポリシーで公開
 
 Resources:
-  # S3バケットを作成
   StaticSiteBucket:
     Type: AWS::S3::Bucket
     Properties:
-      # 静的ウェブサイトホスティングの有効化
+      # S3 静的ウェブサイトホスティングを有効化
       WebsiteConfiguration:
         IndexDocument: index.html
         ErrorDocument: index.html
-      # ここは“バケット側の” Public Access Block を個別にOFFにする
+      # バケット側の公開ブロック設定
+      # - ACL は不使用 (BlockPublicAcls/IgnorePublicAcls は true)
+      # - ポリシー公開は許可 (BlockPublicPolicy/RestrictPublicBuckets は false)
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: true           # ACLは使わないのでtrueのままでOK
+        BlockPublicAcls: true
         IgnorePublicAcls: true
-        BlockPublicPolicy: false        # ポリシー公開を許可
+        BlockPublicPolicy: false
         RestrictPublicBuckets: false
-        
+
+  # オブジェクトの GET を全員に許可（検証用の最小公開設定）
+  # 本番は CloudFront + OAC で私有化する運用を推奨
   StaticSiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -31,7 +39,7 @@ Resources:
             Resource: !Sub "${StaticSiteBucket.Arn}/*"
 
 Outputs:
-  # デプロイ完了後に表示されるS3サイトのURL
+  # デプロイ後の S3 静的サイト URL（http）
   WebsiteURL:
     Value: !GetAtt StaticSiteBucket.WebsiteURL
     Description: "S3 static website endpoint"
