@@ -10,8 +10,25 @@ Resources:
       WebsiteConfiguration:
         IndexDocument: index.html
         ErrorDocument: index.html
-      # 公開アクセスを許可（最低限の検証用。後でCloudFrontに置き換え可）
-      AccessControl: PublicRead
+      # ここは“バケット側の” Public Access Block を個別にOFFにする
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true           # ACLは使わないのでtrueのままでOK
+        IgnorePublicAcls: true
+        BlockPublicPolicy: false        # ポリシー公開を許可
+        RestrictPublicBuckets: false
+        
+  StaticSiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StaticSiteBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadByPolicy
+            Effect: Allow
+            Principal: "*"
+            Action: "s3:GetObject"
+            Resource: !Sub "${StaticSiteBucket.Arn}/*"
 
 Outputs:
   # デプロイ完了後に表示されるS3サイトのURL

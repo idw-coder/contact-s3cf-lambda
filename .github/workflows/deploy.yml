@@ -2,44 +2,74 @@ name: Deploy static site to S3
 
 on:
   push:
-    branches: [ main ] # main ブランチに push されたら実行
+    branches: [ main, dev ]  # main と dev に push されたら実行
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # ソースコードをチェックアウト
-      - uses: actions/checkout@v4
-
-      # AWS 認証情報をセットアップ（Secrets から読み込み）
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      # AWS 認証情報を Secrets から設定
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # CloudFormation を使って S3 バケットを作成/更新
-      - name: Deploy CloudFormation (S3 bucket)
-        run: aws cloudformation deploy --stack-name static-site-stack --template-file infra/s3-site.yaml --no-fail-on-empty-changeset                # 変更がなくてもエラーにしない
-
-      # frontend/ ディレクトリのファイルを S3 にアップロード
-      - name: Upload site files (frontend/)
+      - name: Debug: list files
+        shell: bash
+        # infra/s3-site.yaml と frontend/ の存在を確認
         run: |
+          pwd
+          ls -la
+          ls -la infra || true
+          ls -la frontend || true
+
+      - name: Validate template
+        shell: bash
+        # CloudFormation のテンプレート検証（基本的な構文チェック）
+        run: aws cloudformation validate-template --template-body file://infra/s3-site.yaml
+
+      - name: Deploy CloudFormation
+        id: cfn_deploy
+        shell: bash
+        # スタック作成／更新を実行（失敗コードはキャプチャして次でイベント表示）
+        run: |
+          set +e
           aws cloudformation deploy \
             --stack-name static-site-stack \
             --template-file infra/s3-site.yaml \
             --no-fail-on-empty-changeset
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Upload site files (sync frontend/ to S3 root)
+      - name: Events (on failure)
+        if: ${{ steps.cfn_deploy.outputs.exit_code != '0' }}
         shell: bash
-        # frontend/ 配下を S3 直下へ同期（不要ファイル削除）
+        # 失敗時に直近の CloudFormation イベントとスタック状態を必ず表示
+        run: |
+          echo "=== Recent stack events ==="
+          aws cloudformation describe-stack-events --stack-name static-site-stack --max-items 25 || true
+          echo ""
+          echo "=== Stack status ==="
+          aws cloudformation describe-stacks --stack-name static-site-stack --query "Stacks[0].StackStatus" || true
+          exit 1
+
+      - name: Resolve bucket name
+        id: resolve
+        shell: bash
+        # StaticSiteBucket の物理名（PhysicalResourceId）を取得し出力へ設定
+        run: |
+          BUCKET_NAME=$(aws cloudformation describe-stack-resources \
+            --stack-name static-site-stack \
+            --query "StackResources[?LogicalResourceId=='StaticSiteBucket'].PhysicalResourceId" \
+            --output text)
+          echo "bucket=${BUCKET_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload site files
+        shell: bash
+        # frontend/ 配下を S3 ルートへ同期（--delete で不要ファイルを削除）
         run: |
           aws s3 sync frontend/ "s3://${{ steps.resolve.outputs.bucket }}/" --delete
-
-      # デバッグ用にinfra/ 配下のファイルを表示
-      - name: Debug list files
-        run: |
-          pwd
-          ls -la
-          ls -la infra
