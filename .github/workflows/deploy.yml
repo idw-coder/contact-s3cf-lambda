@@ -36,7 +36,9 @@ jobs:
         # frontend/ 配下を S3 直下へ同期（不要ファイル削除）
         run: |
           aws s3 sync frontend/ "s3://${{ steps.resolve.outputs.bucket }}/" --delete
-          
+
+      # デバッグ用にinfra/ 配下のファイルを表示
+      - name: Debug: list files
         run: |
           pwd
           ls -la
