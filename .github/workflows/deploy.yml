@@ -100,6 +100,18 @@ jobs:
         run: |
           aws s3 sync frontend/ "s3://${{ steps.resolve.outputs.bucket }}/" --delete
 
+      # CloudFront キャッシュをクリア
+      - name: Invalidate CloudFront
+        shell: bash
+        run: |
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name static-site-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text)
+          aws cloudfront create-invalidation \
+            --distribution-id $DISTRIBUTION_ID \
+            --paths "/*"
+
       # デプロイ後のサイト URL を表示（ログではリージョン名が *** でマスクされます）
       - name: Print website URL
         shell: bash
@@ -109,3 +121,13 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
             --output text)
           echo "WebsiteURL: ${URL}"
+
+      # CloudFront HTTPS URL も表示
+      - name: Print CloudFront URL
+        shell: bash
+        run: |
+          HTTPS_URL=$(aws cloudformation describe-stacks \
+            --stack-name static-site-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontURL'].OutputValue" \
+            --output text)
+          echo "CloudFront HTTPS URL: ${HTTPS_URL}"
