@@ -21,18 +21,23 @@ jobs:
 
       # CloudFormation を使って S3 バケットを作成/更新
       - name: Deploy CloudFormation (S3 bucket)
-        run: |
-          aws cloudformation deploy \
-            --stack-name static-site-stack \               # スタック名
-            --template-file infra/s3-site.yaml \           # 読み込むテンプレート
-            --no-fail-on-empty-changeset                   # 変更がなくてもエラーにしない
+        run: aws cloudformation deploy --stack-name static-site-stack --template-file infra/s3-site.yaml --no-fail-on-empty-changeset                # 変更がなくてもエラーにしない
 
       # frontend/ ディレクトリのファイルを S3 にアップロード
       - name: Upload site files (frontend/)
         run: |
-          BUCKET_NAME=$(aws cloudformation describe-stack-resources \
+          aws cloudformation deploy \
             --stack-name static-site-stack \
-            --query "StackResources[?LogicalResourceId=='StaticSiteBucket'].PhysicalResourceId" \
-            --output text)
+            --template-file infra/s3-site.yaml \
+            --no-fail-on-empty-changeset
 
-          aws s3 sync frontend/ s3://$BUCKET_NAME/ --delete
+      - name: Upload site files (sync frontend/ to S3 root)
+        shell: bash
+        # frontend/ 配下を S3 直下へ同期（不要ファイル削除）
+        run: |
+          aws s3 sync frontend/ "s3://${{ steps.resolve.outputs.bucket }}/" --delete
+          
+        run: |
+          pwd
+          ls -la
+          ls -la infra
