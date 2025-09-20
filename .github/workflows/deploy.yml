@@ -100,7 +100,7 @@ jobs:
         run: |
           aws s3 sync frontend/ "s3://${{ steps.resolve.outputs.bucket }}/" --delete
 
-      # デプロイ後のサイト URL を表示
+      # デプロイ後のサイト URL を表示（ログではリージョン名が *** でマスクされます）
       - name: Print website URL
         shell: bash
         run: |
