@@ -2,44 +2,110 @@ name: Deploy static site to S3
 
 on:
   push:
-    branches: [ main ] # main ブランチに push されたら実行
+    branches: [ main, dev ]  # 必要に応じてブランチを調整
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # ソースコードをチェックアウト
-      - uses: actions/checkout@v4
+      # リポジトリをチェックアウト
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # AWS 認証情報をセットアップ（Secrets から読み込み）
-      - uses: aws-actions/configure-aws-credentials@v4
+      # AWS 認証情報を設定（Secrets を使用）
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # CloudFormation を使って S3 バケットを作成/更新
-      - name: Deploy CloudFormation (S3 bucket)
-        run: aws cloudformation deploy --stack-name static-site-stack --template-file infra/s3-site.yaml --no-fail-on-empty-changeset                # 変更がなくてもエラーにしない
-
-      # frontend/ ディレクトリのファイルを S3 にアップロード
-      - name: Upload site files (frontend/)
+      # 構成の目視確認（パス誤りを早期発見）
+      - name: Debug list files
+        shell: bash
         run: |
+          pwd
+          ls -la
+          ls -la infra || true
+          ls -la frontend || true
+
+      # テンプレートの事前バリデーション（構文・基本参照）
+      - name: Validate template
+        shell: bash
+        run: aws cloudformation validate-template --template-body file://infra/s3-site.yaml
+
+      # ROLLBACK_COMPLETE 等で更新不可のスタックがある場合は削除してから作成
+      - name: Pre clean rollback stacks
+        shell: bash
+        run: |
+          set -e
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name static-site-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || true)
+
+          echo "Current stack status -> ${STATUS:-none}"
+
+          if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "ROLLBACK_FAILED" ]]; then
+            echo "Deleting stack static-site-stack"
+            aws cloudformation delete-stack --stack-name static-site-stack
+            echo "Waiting for deletion to complete"
+            aws cloudformation wait stack-delete-complete --stack-name static-site-stack
+            echo "Deleted"
+          fi
+
+      # スタックの作成／更新を実行（失敗コードはキャプチャ）
+      - name: Deploy CloudFormation
+        id: cfn_deploy
+        shell: bash
+        run: |
+          set +e
           aws cloudformation deploy \
             --stack-name static-site-stack \
             --template-file infra/s3-site.yaml \
             --no-fail-on-empty-changeset
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Upload site files (sync frontend/ to S3 root)
+      # 失敗時に直近イベントと現在状態を必ず表示（原因特定用）
+      - name: Show CFN events on failure
+        if: ${{ steps.cfn_deploy.outputs.exit_code != '0' }}
         shell: bash
-        # frontend/ 配下を S3 直下へ同期（不要ファイル削除）
+        run: |
+          echo "=== Recent stack events ==="
+          aws cloudformation describe-stack-events \
+            --stack-name static-site-stack \
+            --max-items 25 || true
+          echo ""
+          echo "=== Stack status ==="
+          aws cloudformation describe-stacks \
+            --stack-name static-site-stack \
+            --query "Stacks[0].StackStatus" || true
+          exit 1
+
+      # バケットの実名（PhysicalResourceId）を取得して後続に渡す
+      - name: Resolve bucket name
+        id: resolve
+        shell: bash
+        run: |
+          BUCKET_NAME=$(aws cloudformation describe-stack-resources \
+            --stack-name static-site-stack \
+            --query "StackResources[?LogicalResourceId=='StaticSiteBucket'].PhysicalResourceId" \
+            --output text)
+          echo "bucket=${BUCKET_NAME}" >> "$GITHUB_OUTPUT"
+
+      # frontend 配下を S3 直下に同期
+      - name: Upload site files
+        shell: bash
         run: |
           aws s3 sync frontend/ "s3://${{ steps.resolve.outputs.bucket }}/" --delete
 
-      # デバッグ用にinfra/ 配下のファイルを表示
-      - name: Debug list files
+      # デプロイ後のサイト URL を表示（ログではリージョン名が *** でマスクされます）
+      - name: Print website URL
+        shell: bash
         run: |
-          pwd
-          ls -la
-          ls -la infra
+          URL=$(aws cloudformation describe-stacks \
+            --stack-name static-site-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
+            --output text)
+          echo "WebsiteURL: ${URL}"
