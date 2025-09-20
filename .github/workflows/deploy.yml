@@ -99,3 +99,13 @@ jobs:
         shell: bash
         run: |
           aws s3 sync frontend/ "s3://${{ steps.resolve.outputs.bucket }}/" --delete
+
+      # デプロイ後のサイト URL を表示
+      - name: Print website URL
+        shell: bash
+        run: |
+          URL=$(aws cloudformation describe-stacks \
+            --stack-name static-site-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
+            --output text)
+          echo "WebsiteURL: ${URL}"
