@@ -3,6 +3,7 @@
 name: Deploy Backend
 
 on:
+  workflow_dispatch:  # 手動実行ボタン
   push:
     branches: [main, develop]  # mainまたはdevelopブランチにプッシュ時
     paths:
