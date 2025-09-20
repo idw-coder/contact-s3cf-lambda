@@ -19,7 +19,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Debug: list files
+      - name: Debug list files
         shell: bash
         # infra/s3-site.yaml と frontend/ の存在を確認
         run: |
