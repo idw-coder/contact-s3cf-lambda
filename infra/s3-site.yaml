@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "S3 static website (minimal)"
+
+Resources:
+  # S3バケットを作成
+  StaticSiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # 静的ウェブサイトホスティングの有効化
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      # 公開アクセスを許可（最低限の検証用。後でCloudFrontに置き換え可）
+      AccessControl: PublicRead
+
+Outputs:
+  # デプロイ完了後に表示されるS3サイトのURL
+  WebsiteURL:
+    Value: !GetAtt StaticSiteBucket.WebsiteURL
+    Description: "S3 static website endpoint"
