@@ -38,7 +38,7 @@ jobs:
           aws s3 sync frontend/ "s3://${{ steps.resolve.outputs.bucket }}/" --delete
 
       # デバッグ用にinfra/ 配下のファイルを表示
-      - name: Debug: list files
+      - name: Debug list files
         run: |
           pwd
           ls -la
