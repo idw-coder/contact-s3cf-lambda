@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Hello API (Lambda + API Gateway HTTP API)"
+
+Resources:
+
+  # Lambda関数用のIAMロールを作成
+  HelloLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              # Lambda サービスのみが使用可能
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  HelloLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: HelloLambda
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt HelloLambdaRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            return { statusCode: 200, headers: { "Content-Type":"application/json" }, body: JSON.stringify({ message: "hello" }) };
+          };
+
+  # API Gateway HTTP API を作成
+  HelloApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: HelloApi
+      ProtocolType: HTTP
+      # CORS 設定
+      CorsConfiguration:
+        AllowOrigins: ["*"]
+        AllowMethods: ["GET"]
+        AllowHeaders: ["*"]
+
+  # API Gateway と Lambda を接続
+  HelloIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HelloApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloLambda.Arn}/invocations
+      PayloadFormatVersion: "2.0"
+
+  HelloRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HelloApi
+      RouteKey: "GET /hello"
+      Target: !Sub "integrations/${HelloIntegration}"
+
+  # Lambda 関数を API Gateway から呼び出す権限を付与
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HelloLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+
+  # API Gateway のデフォルトステージを作成
+  HelloStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: "$default"
+      AutoDeploy: true
+      ApiId: !Ref HelloApi
+
+Outputs:
+  ApiEndpoint:
+    Description: "Invoke URL"
+    Value: !Sub "https://${HelloApi}.execute-api.${AWS::Region}.amazonaws.com"

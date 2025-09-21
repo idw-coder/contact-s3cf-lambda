@@ -38,8 +38,54 @@ Resources:
             Action: "s3:GetObject"
             Resource: !Sub "${StaticSiteBucket.Arn}/*"
 
+            
+  # CloudFrontディストリビューション：HTTPS化とグローバル配信
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        # オリジン設定：S3ウェブサイトエンドポイントを指定
+        Origins:
+          - Id: S3Origin
+            # S3ウェブサイトエンドポイントのドメイン名を抽出
+            # WebsiteURL形式: http://bucket.s3-website-region.amazonaws.com
+            # Split関数でhttp://を除去してドメイン名のみ取得
+            DomainName: !Select [2, !Split ["/", !GetAtt StaticSiteBucket.WebsiteURL]]
+            CustomOriginConfig:
+              HTTPPort: 80                   # S3ウェブサイトエンドポイントはHTTPのみ
+              OriginProtocolPolicy: http-only # オリジンとの通信はHTTPのみ
+        
+        Enabled: true                        # ディストリビューションを有効化
+        DefaultRootObject: index.html        # ルートアクセス時のデフォルトファイル
+        
+        # デフォルトキャッシュビヘイビア：全てのリクエストに適用される設定
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin           # 上で定義したオリジンを指定
+          ViewerProtocolPolicy: redirect-to-https  # HTTPリクエストを自動的にHTTPSにリダイレクト
+          AllowedMethods: [GET, HEAD]        # 静的サイトなのでGETとHEADのみ許可
+          # AWS管理のキャッシュポリシー「CachingOptimized」を使用
+          # 静的コンテンツに最適化されたキャッシュ設定
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+        
+        # 料金クラス：最も安価なエッジロケーション（北米・ヨーロッパ）のみ使用
+        # 他の選択肢: PriceClass_200（アジアも含む）、PriceClass_All（全世界）
+        PriceClass: PriceClass_100
+        
+        HttpVersion: http2                   # HTTP/2を有効化（パフォーマンス向上）
+
+# アウトプット：デプロイ後に取得できる値
 Outputs:
-  # デプロイ後の S3 静的サイト URL（http）
+  # 従来のS3ウェブサイトURL（HTTP）- 後方互換性のため残す
   WebsiteURL:
     Value: !GetAtt StaticSiteBucket.WebsiteURL
-    Description: "S3 static website endpoint"
+    Description: "S3 static website endpoint (HTTP)"
+  
+  # CloudFrontディストリビューションのHTTPS URL - メインのアクセスポイント
+  CloudFrontURL:
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+    Description: "CloudFront HTTPS endpoint (recommended)"
+  
+  # CloudFrontディストリビューションID - キャッシュクリア用
+  CloudFrontDistributionId:
+    Value: !Ref CloudFrontDistribution
+    Description: "CloudFront Distribution ID for cache invalidation"
