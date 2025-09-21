@@ -62,8 +62,7 @@ Resources:
       # CloudFormation が実際の値を自動で設定
       Environment:
         Variables:
-          # !Ref AWS::Region でデプロイ時のリージョンが自動設定（例：ap-northeast-1）
-          AWS_REGION: !Ref AWS::Region
+          # AWS_REGION は Lambda の予約キーワードのため設定不要（自動で利用可能）
           # !Ref ImageUploadBucket で上で作成したバケットの実名が自動設定
           # 例：hello-api-stack-imageuploadbucket-abc123def456
           BUCKET_NAME: !Ref ImageUploadBucket
