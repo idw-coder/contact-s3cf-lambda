@@ -5,9 +5,13 @@ Resources:
 
   # 画像アップロード専用のS3バケットを新規作成
   # 静的サイト用とは別のバケットで、セキュリティと管理を分離
+  # バケット名は CloudFormation が自動生成（例：hello-api-stack-imageuploadbucket-abc123def456）
+  # S3バケット名は全世界で一意である必要があるため、自動生成で名前衝突を回避
   ImageUploadBucket:
     Type: AWS::S3::Bucket
     Properties:
+      # BucketName を指定しない場合、CloudFormation が自動で一意な名前を生成
+      # 形式：{スタック名}-{リソース名}-{ランダム文字列}
       # パブリックアクセスを完全にブロック（署名付きURLで制御）
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -55,10 +59,14 @@ Resources:
       Handler: index.handler
       Role: !GetAtt HelloLambdaRole.Arn
       # 環境変数：Lambdaコード内で使用するAWS設定
+      # CloudFormation が実際の値を自動で設定
       Environment:
         Variables:
-          AWS_REGION: !Ref AWS::Region          # 現在のリージョン
-          BUCKET_NAME: !Ref ImageUploadBucket   # 作成した画像バケット名
+          # !Ref AWS::Region でデプロイ時のリージョンが自動設定（例：ap-northeast-1）
+          AWS_REGION: !Ref AWS::Region
+          # !Ref ImageUploadBucket で上で作成したバケットの実名が自動設定
+          # 例：hello-api-stack-imageuploadbucket-abc123def456
+          BUCKET_NAME: !Ref ImageUploadBucket
       
       # Code.ZipFile は「CloudFormation で Lambda を作成する際に必須」のため残しているだけです。
       # 実際のコードは GitHub Actions (update-function-code) により毎回上書きされます。
