@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Contact API (Lambda + API Gateway HTTP API)"
+
+Resources:
+  # Lambda 実行ロール（CloudWatch Logs だけ許可）
+  ContactLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  # Lambda 関数
+  ContactLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ContactLambda
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt ContactLambdaRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log("event:", event);
+            return {
+              statusCode: 200,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ message: "OK" }),
+            };
+          };
+
+  # API Gateway HTTP API
+  ContactApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: ContactApi
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - POST
+        AllowHeaders:
+          - "*"
+
+  # API Gateway ルート
+  ContactRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ContactApi
+      RouteKey: "POST /contact"
+      Target: !Sub "integrations/${ContactIntegration}"
+
+  # Lambda と API Gateway の統合
+  ContactIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ContactApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ContactLambda.Arn}/invocations
+      PayloadFormatVersion: "2.0"
+
+  # Lambda に API 実行権限を付与
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ContactLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+
+  # デフォルトステージ（自動デプロイ有効）
+  ContactStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: "$default"
+      AutoDeploy: true
+      ApiId: !Ref ContactApi
+
+Outputs:
+  ApiEndpoint:
+    Description: "Invoke URL"
+    Value: !Sub "https://${ContactApi}.execute-api.${AWS::Region}.amazonaws.com"
