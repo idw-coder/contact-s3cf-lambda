@@ -44,8 +44,7 @@ jobs:
       - name: Build backend (TypeScript -> dist/index.js)
         working-directory: backend
         run: |
-          npm init -y >/dev/null 2>&1 || true
-          npm i -D typescript >/dev/null 2>&1
+          npm install
           npx tsc -p tsconfig.json
 
       - name: Package Lambda code
