@@ -25,6 +25,10 @@ Resources:
       Runtime: nodejs20.x
       Handler: index.handler
       Role: !GetAtt HelloLambdaRole.Arn
+      
+      # Code.ZipFile は「CloudFormation で Lambda を作成する際に必須」のため残しているだけです。
+      # 実際のコードは GitHub Actions (update-function-code) により毎回上書きされます。
+      # したがって、この ZipFile の処理は通常は使われません（初回作成用のダミー）。
       Code:
         ZipFile: |
           exports.handler = async (event) => {
