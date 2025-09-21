@@ -2,6 +2,8 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "Hello API (Lambda + API Gateway HTTP API)"
 
 Resources:
+
+  # Lambda関数用のIAMロールを作成
   HelloLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -10,6 +12,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
+              # Lambda サービスのみが使用可能
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
@@ -28,16 +31,19 @@ Resources:
             return { statusCode: 200, headers: { "Content-Type":"application/json" }, body: JSON.stringify({ message: "hello" }) };
           };
 
+  # API Gateway HTTP API を作成
   HelloApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
       Name: HelloApi
       ProtocolType: HTTP
+      # CORS 設定
       CorsConfiguration:
         AllowOrigins: ["*"]
         AllowMethods: ["GET"]
         AllowHeaders: ["*"]
 
+  # API Gateway と Lambda を接続
   HelloIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
@@ -53,6 +59,7 @@ Resources:
       RouteKey: "GET /hello"
       Target: !Sub "integrations/${HelloIntegration}"
 
+  # Lambda 関数を API Gateway から呼び出す権限を付与
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -60,6 +67,7 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
 
+  # API Gateway のデフォルトステージを作成
   HelloStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
