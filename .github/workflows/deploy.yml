@@ -35,6 +35,30 @@ jobs:
         shell: bash
         run: aws cloudformation validate-template --template-body file://infra/s3-site.yaml
 
+      # Lambda backend をビルドして ZIP
+      - name: Setup Node for backend
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build backend (TypeScript -> dist/index.js)
+        working-directory: backend
+        run: |
+          npm init -y >/dev/null 2>&1 || true
+          npm i -D typescript >/dev/null 2>&1
+          npx tsc -v
+          npx tsc -p tsconfig.json
+
+      - name: Package Lambda code
+        shell: bash
+        run: |
+          mkdir -p lambda_pkg
+          # Handler: index.handler に合わせて ZIP 直下に index.js を置く
+          cp backend/dist/index.js lambda_pkg/index.js
+          cd lambda_pkg
+          zip -r ../function.zip .
+          cd ..
+
       # ROLLBACK_COMPLETE 等で更新不可のスタックがある場合は削除してから作成
       - name: Pre clean rollback stacks
         shell: bash
