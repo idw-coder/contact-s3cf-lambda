@@ -1,8 +1,8 @@
-name: Deploy static site to S3
+name: Deploy static site to S3 + Lambda backend
 
 on:
   push:
-    branches: [ main, dev ]  # 必要に応じてブランチを調整
+    branches: [ main, dev ]  # 必要に応じて調整
 
 jobs:
   deploy:
@@ -29,13 +29,63 @@ jobs:
           ls -la
           ls -la infra || true
           ls -la frontend || true
+          ls -la backend || true
 
-      # テンプレートの事前バリデーション（構文・基本参照）
-      - name: Validate template
-        shell: bash
+      # s3-site.yaml (静的サイト用CFN) の事前バリデーション
+      - name: Validate s3-site template
         run: aws cloudformation validate-template --template-body file://infra/s3-site.yaml
 
-      # ROLLBACK_COMPLETE 等で更新不可のスタックがある場合は削除してから作成
+      # backend をビルドして ZIP 作成
+      - name: Setup Node for backend
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build backend (TypeScript -> dist/index.js)
+        working-directory: backend
+        run: |
+          npm init -y >/dev/null 2>&1 || true
+          npm i -D typescript >/dev/null 2>&1
+          npx tsc -p tsconfig.json
+
+      - name: Package Lambda code
+        shell: bash
+        run: |
+          mkdir -p lambda_pkg
+          cp backend/dist/index.js lambda_pkg/index.js  # Handler=index.handler に合わせてZIP直下に配置
+          cd lambda_pkg
+          zip -r ../function.zip .
+          cd ..
+
+      # --- hello-api を先に作る（Lambda/APIの箱をCloudFormationで用意） ---
+      - name: Validate hello-api template
+        run: aws cloudformation validate-template --template-body file://infra/hello-api.yaml
+
+      - name: Deploy hello-api stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name hello-api-stack \
+            --template-file infra/hello-api.yaml \
+            --capabilities CAPABILITY_IAM
+
+      # Lambda 関数コードの更新（上で作成した ZIP を反映）
+      - name: Update HelloLambda code
+        run: |
+          aws lambda update-function-code \
+            --function-name HelloLambda \
+            --zip-file fileb://function.zip
+
+      # API エンドポイントの表示（確認用）
+      - name: Print Hello API endpoint
+        shell: bash
+        run: |
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name hello-api-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
+            --output text)
+          echo "HelloApiEndpoint: ${API_URL}"
+
+      # --- static-site の CloudFormation デプロイ ---
       - name: Pre clean rollback stacks
         shell: bash
         run: |
@@ -50,12 +100,10 @@ jobs:
           if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "ROLLBACK_FAILED" ]]; then
             echo "Deleting stack static-site-stack"
             aws cloudformation delete-stack --stack-name static-site-stack
-            echo "Waiting for deletion to complete"
             aws cloudformation wait stack-delete-complete --stack-name static-site-stack
             echo "Deleted"
           fi
 
-      # スタックの作成／更新を実行（失敗コードはキャプチャ）
       - name: Deploy CloudFormation
         id: cfn_deploy
         shell: bash
@@ -67,7 +115,6 @@ jobs:
             --no-fail-on-empty-changeset
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
-      # 失敗時に直近イベントと現在状態を必ず表示（原因特定用）
       - name: Show CFN events on failure
         if: ${{ steps.cfn_deploy.outputs.exit_code != '0' }}
         shell: bash
@@ -112,7 +159,7 @@ jobs:
             --distribution-id $DISTRIBUTION_ID \
             --paths "/*"
 
-      # デプロイ後のサイト URL を表示（ログではリージョン名が *** でマスクされます）
+      # デプロイ後のサイト URL を表示
       - name: Print website URL
         shell: bash
         run: |
