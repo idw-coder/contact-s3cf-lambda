@@ -49,7 +49,7 @@ Resources:
                 Action:
                   - s3:PutObject      # オブジェクトアップロード
                   - s3:PutObjectAcl   # アクセス制御設定
-                Resource: !Sub "${ImageUploadBucket}/*"  # 画像バケット内のみ
+                Resource: !Sub "${ImageUploadBucket.Arn}/*"  # 画像バケット内のみ
 
   HelloLambda:
     Type: AWS::Lambda::Function
