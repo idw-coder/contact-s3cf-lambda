@@ -1,57 +1,135 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>お問い合わせ</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
-    label { display:block; margin: 12px 0 4px; }
-    input, textarea { width:100%; padding:8px; border:1px solid #ccc; border-radius:6px; }
-    button { margin-top:12px; padding:10px 16px; border:0; border-radius:8px; cursor:pointer; }
-    #result { margin-top:12px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hello API テスト</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            min-height: 50px;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
 </head>
 <body>
-  <h1>お問い合わせ</h1>
-  <form id="contact">
-    <label>お名前</label>
-    <input name="name" required>
-    <label>メールアドレス</label>
-    <input name="email" type="email" required>
-    <label>内容</label>
-    <textarea name="message" rows="6" required></textarea>
-    <button type="submit">送信</button>
-  </form>
-  <p id="result"></p>
+    <h1>Hello API テスト</h1>
+    <p>ボタンをクリックしてAPIを呼び出します</p>
+    
+    <button id="callApiButton" onclick="callHelloApi()">Hello API を呼び出す</button>
+    
+    <div id="result">
+        <p>結果がここに表示されます</p>
+    </div>
 
-  <script>
-    // ★次で作るAPIのURLに置き換えます（例: https://xxx.execute-api.ap-northeast-1.amazonaws.com/submit）
-    const API_URL = 'https://YOUR_API_ID.execute-api.ap-northeast-1.amazonaws.com/submit';
+    <script>
+        // GitHub Actions のログから取得できる "HelloApiEndpoint" の値を使用
+        const API_BASE_URL = 'https://oiejd6jp3m.execute-api.ap-northeast-1.amazonaws.com';
 
-    document.getElementById('contact').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const payload = {
-        name: fd.get('name'),
-        email: fd.get('email'),
-        message: fd.get('message'),
-      };
-      const resultEl = document.getElementById('result');
-
-      try {
-        const r = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!r.ok) throw new Error('送信に失敗しました');
-        resultEl.textContent = '送信しました。ありがとうございます。';
-        e.target.reset();
-      } catch (err) {
-        resultEl.textContent = 'エラー: ' + err.message;
-      }
-    });
-  </script>
+        async function callHelloApi() {
+            const button = document.getElementById('callApiButton');
+            const resultDiv = document.getElementById('result');
+            
+            // ボタンを無効化
+            button.disabled = true;
+            button.textContent = '呼び出し中...';
+            
+            // 結果をクリア
+            resultDiv.innerHTML = '<p>API を呼び出しています...</p>';
+            
+            try {
+                // API を呼び出し
+                const response = await fetch(`${API_BASE_URL}/hello`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                // 成功時の表示
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h3>API 呼び出し成功！</h3>
+                        <p><strong>メッセージ:</strong> ${data.message}</p>
+                        <details>
+                            <summary>レスポンス詳細</summary>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </details>
+                    </div>
+                `;
+                
+            } catch (error) {
+                // エラー時の表示
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>エラーが発生しました</h3>
+                        <p><strong>エラー:</strong> ${error.message}</p>
+                        <p><strong>確認事項:</strong></p>
+                        <ul style="text-align: left;">
+                            <li>API_BASE_URL が正しく設定されているか</li>
+                            <li>CORS設定が正しいか</li>
+                            <li>Lambda関数が正常に動作しているか</li>
+                        </ul>
+                    </div>
+                `;
+            } finally {
+                // ボタンを再有効化
+                button.disabled = false;
+                button.textContent = 'Hello API を呼び出す';
+            }
+        }
+        
+        // ページ読み込み時にAPI URLが設定されているかチェック
+        window.onload = function() {
+            if (API_BASE_URL === 'https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com') {
+                document.getElementById('result').innerHTML = `
+                    <div class="error">
+                        <p>API_BASE_URL を設定してください</p>
+                        <p>GitHub Actions のログから "HelloApiEndpoint" の値をコピーして、<br>
+                        JavaScriptの API_BASE_URL 変数に設定してください。</p>
+                    </div>
+                `;
+            }
+        };
+    </script>
 </body>
 </html>
