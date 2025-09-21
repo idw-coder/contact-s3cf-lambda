@@ -1,9 +1,8 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Contact API (Lambda + API Gateway HTTP API)"
+Description: "Hello API (Lambda + API Gateway HTTP API)"
 
 Resources:
-  # Lambda 実行ロール（CloudWatch Logs だけ許可）
-  ContactLambdaRole:
+  HelloLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -16,73 +15,59 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
-  # Lambda 関数
-  ContactLambda:
+  HelloLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: ContactLambda
+      FunctionName: HelloLambda
       Runtime: nodejs20.x
       Handler: index.handler
-      Role: !GetAtt ContactLambdaRole.Arn
+      Role: !GetAtt HelloLambdaRole.Arn
       Code:
         ZipFile: |
           exports.handler = async (event) => {
-            console.log("event:", event);
-            return {
-              statusCode: 200,
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ message: "OK" }),
-            };
+            return { statusCode: 200, headers: { "Content-Type":"application/json" }, body: JSON.stringify({ message: "hello" }) };
           };
 
-  # API Gateway HTTP API
-  ContactApi:
+  HelloApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
-      Name: ContactApi
+      Name: HelloApi
       ProtocolType: HTTP
       CorsConfiguration:
-        AllowOrigins:
-          - "*"
-        AllowMethods:
-          - POST
-        AllowHeaders:
-          - "*"
+        AllowOrigins: ["*"]
+        AllowMethods: ["GET"]
+        AllowHeaders: ["*"]
 
-  # API Gateway ルート
-  ContactRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref ContactApi
-      RouteKey: "POST /contact"
-      Target: !Sub "integrations/${ContactIntegration}"
-
-  # Lambda と API Gateway の統合
-  ContactIntegration:
+  HelloIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
-      ApiId: !Ref ContactApi
+      ApiId: !Ref HelloApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ContactLambda.Arn}/invocations
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloLambda.Arn}/invocations
       PayloadFormatVersion: "2.0"
 
-  # Lambda に API 実行権限を付与
+  HelloRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HelloApi
+      RouteKey: "GET /hello"
+      Target: !Sub "integrations/${HelloIntegration}"
+
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref ContactLambda
+      FunctionName: !Ref HelloLambda
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
 
-  # デフォルトステージ（自動デプロイ有効）
-  ContactStage:
+  HelloStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
       StageName: "$default"
       AutoDeploy: true
-      ApiId: !Ref ContactApi
+      ApiId: !Ref HelloApi
 
 Outputs:
   ApiEndpoint:
     Description: "Invoke URL"
-    Value: !Sub "https://${ContactApi}.execute-api.${AWS::Region}.amazonaws.com"
+    Value: !Sub "https://${HelloApi}.execute-api.${AWS::Region}.amazonaws.com"
