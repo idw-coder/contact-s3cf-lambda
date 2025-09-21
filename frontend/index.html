@@ -117,19 +117,6 @@
                 button.textContent = 'Hello API を呼び出す';
             }
         }
-        
-        // ページ読み込み時にAPI URLが設定されているかチェック
-        window.onload = function() {
-            if (API_BASE_URL === 'https://oiejd6jp3m.execute-api.ap-northeast-1.amazonaws.com') {
-                document.getElementById('result').innerHTML = `
-                    <div class="error">
-                        <p>API_BASE_URL を設定してください</p>
-                        <p>GitHub Actions のログから "HelloApiEndpoint" の値をコピーして、<br>
-                        JavaScriptの API_BASE_URL 変数に設定してください。</p>
-                    </div>
-                `;
-            }
-        };
     </script>
 </body>
 </html>
