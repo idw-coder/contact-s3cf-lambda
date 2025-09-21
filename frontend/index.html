@@ -88,7 +88,7 @@
                 // 成功時の表示
                 resultDiv.innerHTML = `
                     <div class="success">
-                        <h3>API 呼び出し成功！</h3>
+                        <h3>API 呼び出し成功</h3>
                         <p><strong>メッセージ:</strong> ${data.message}</p>
                         <details>
                             <summary>レスポンス詳細</summary>
@@ -120,7 +120,7 @@
         
         // ページ読み込み時にAPI URLが設定されているかチェック
         window.onload = function() {
-            if (API_BASE_URL === 'https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com') {
+            if (API_BASE_URL === 'https://oiejd6jp3m.execute-api.ap-northeast-1.amazonaws.com') {
                 document.getElementById('result').innerHTML = `
                     <div class="error">
                         <p>API_BASE_URL を設定してください</p>
