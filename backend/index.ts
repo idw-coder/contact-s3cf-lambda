@@ -9,15 +9,15 @@ export const handler = async (event: any) => {
   console.log("event:", JSON.stringify(event));
   
   try {
-    const { httpMethod, path } = event.requestContext.http;
+    const { method, path } = event.requestContext.http;
     
     // デバッグログ追加
-    console.log("httpMethod:", httpMethod);
+    console.log("httpMethod:", method);
     console.log("path:", path);
     console.log("routeKey:", event.routeKey);
     
     // 既存のhelloエンドポイント
-    if (httpMethod === "GET" && path === "/hello") {
+    if (method === "GET" && path === "/hello") {
       console.log("Returning hello response");
       return {
         statusCode: 200,
