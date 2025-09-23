@@ -8,6 +8,11 @@ export const handler = async (event: any) => {
   console.log("event:", JSON.stringify(event));
   
   try {
+
+    /**
+     * @param event AWS Lambda Proxy Integration のイベントオブジェクト
+     * @docs https://docs.aws.amazon.com/ja_jp/lambda/latest/dg/nodejs-handler.html
+     */
     const { method, path } = event.requestContext.http;
     
     // 既存のhelloエンドポイント
