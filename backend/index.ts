@@ -11,6 +11,11 @@ export const handler = async (event: any) => {
   try {
     const { httpMethod, path } = event.requestContext.http;
     
+    // デバッグログ追加
+    console.log("httpMethod:", httpMethod);
+    console.log("path:", path);
+    console.log("routeKey:", event.routeKey);
+    
     // 既存のhelloエンドポイント
     if (httpMethod === "GET" && path === "/hello") {
       console.log("Returning hello response");
