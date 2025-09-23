@@ -1,9 +1,8 @@
-// AWS SDK関連をコメントアウト（問題解決後に戻す）
-// import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-// import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-// const s3Client = new S3Client({});
-// const BUCKET_NAME = process.env.BUCKET_NAME || "your-bucket-name";
+const s3Client = new S3Client({});
+const BUCKET_NAME = process.env.BUCKET_NAME || "your-bucket-name";
 
 export const handler = async (event: any) => {
   console.log("event:", JSON.stringify(event));
@@ -11,14 +10,8 @@ export const handler = async (event: any) => {
   try {
     const { method, path } = event.requestContext.http;
     
-    // デバッグログ追加
-    console.log("httpMethod:", method);
-    console.log("path:", path);
-    console.log("routeKey:", event.routeKey);
-    
     // 既存のhelloエンドポイント
     if (method === "GET" && path === "/hello") {
-      console.log("Returning hello response");
       return {
         statusCode: 200,
         headers: { 
@@ -29,9 +22,8 @@ export const handler = async (event: any) => {
       };
     }
     
-    // 新しい画像アップロード用エンドポイント（一時的にコメントアウト）
-    /*
-    if (httpMethod === "POST" && path === "/upload") {
+    // 画像アップロード用エンドポイント
+    if (method === "POST" && path === "/upload") {
       try {
         const body = JSON.parse(event.body || "{}");
         const { fileName, fileType } = body;
@@ -82,9 +74,7 @@ export const handler = async (event: any) => {
         };
       }
     }
-    */
     
-    console.log("Returning 404");
     return {
       statusCode: 404,
       headers: { 
