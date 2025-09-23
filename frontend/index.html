@@ -29,6 +29,12 @@
             background-color: #cccccc;
             cursor: not-allowed;
         }
+        input[type="file"] {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
         #result {
             margin-top: 20px;
             padding: 20px;
@@ -47,31 +53,35 @@
 </head>
 <body>
     <h1>Hello API テスト</h1>
-    <p>ボタンをクリックしてAPIを呼び出します</p>
     
-    <button id="callApiButton" onclick="callHelloApi()">Hello API を呼び出す</button>
+    <div>
+        <h2>API テスト</h2>
+        <button id="callApiButton" onclick="callHelloApi()">Hello API を呼び出す</button>
+    </div>
+    
+    <div>
+        <h2>画像アップロード</h2>
+        <input type="file" id="fileInput" accept="image/*">
+        <button id="uploadButton" onclick="uploadImage()">画像をアップロード</button>
+    </div>
     
     <div id="result">
         <p>結果がここに表示されます</p>
     </div>
 
     <script>
-        // GitHub Actions のログから取得できる "HelloApiEndpoint" の値を使用
         const API_BASE_URL = 'https://oiejd6jp3m.execute-api.ap-northeast-1.amazonaws.com';
 
         async function callHelloApi() {
             const button = document.getElementById('callApiButton');
             const resultDiv = document.getElementById('result');
             
-            // ボタンを無効化
             button.disabled = true;
             button.textContent = '呼び出し中...';
             
-            // 結果をクリア
             resultDiv.innerHTML = '<p>API を呼び出しています...</p>';
             
             try {
-                // API を呼び出し
                 const response = await fetch(`${API_BASE_URL}/hello`, {
                     method: 'GET',
                     headers: {
@@ -85,36 +95,95 @@
                 
                 const data = await response.json();
                 
-                // 成功時の表示
                 resultDiv.innerHTML = `
                     <div class="success">
                         <h3>API 呼び出し成功</h3>
                         <p><strong>メッセージ:</strong> ${data.message}</p>
-                        <details>
-                            <summary>レスポンス詳細</summary>
-                            <pre>${JSON.stringify(data, null, 2)}</pre>
-                        </details>
                     </div>
                 `;
                 
             } catch (error) {
-                // エラー時の表示
                 resultDiv.innerHTML = `
                     <div class="error">
                         <h3>エラーが発生しました</h3>
                         <p><strong>エラー:</strong> ${error.message}</p>
-                        <p><strong>確認事項:</strong></p>
-                        <ul style="text-align: left;">
-                            <li>API_BASE_URL が正しく設定されているか</li>
-                            <li>CORS設定が正しいか</li>
-                            <li>Lambda関数が正常に動作しているか</li>
-                        </ul>
                     </div>
                 `;
             } finally {
-                // ボタンを再有効化
                 button.disabled = false;
                 button.textContent = 'Hello API を呼び出す';
+            }
+        }
+
+        async function uploadImage() {
+            const fileInput = document.getElementById('fileInput');
+            const button = document.getElementById('uploadButton');
+            const resultDiv = document.getElementById('result');
+            
+            if (!fileInput.files[0]) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <p>画像ファイルを選択してください</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            
+            button.disabled = true;
+            button.textContent = 'アップロード中...';
+            
+            try {
+                // 署名付きURLを取得
+                const uploadResponse = await fetch(`${API_BASE_URL}/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        fileName: file.name,
+                        fileType: file.type
+                    })
+                });
+                
+                if (!uploadResponse.ok) {
+                    throw new Error(`Upload URL取得失敗: ${uploadResponse.status}`);
+                }
+                
+                const { uploadUrl, key } = await uploadResponse.json();
+                
+                // S3に直接アップロード
+                const s3Response = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': file.type
+                    },
+                    body: file
+                });
+                
+                if (!s3Response.ok) {
+                    throw new Error(`S3アップロード失敗: ${s3Response.status}`);
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h3>画像アップロード成功</h3>
+                        <p><strong>ファイル名:</strong> ${file.name}</p>
+                        <p><strong>S3キー:</strong> ${key}</p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>アップロードエラー</h3>
+                        <p><strong>エラー:</strong> ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                button.disabled = false;
+                button.textContent = '画像をアップロード';
             }
         }
     </script>
