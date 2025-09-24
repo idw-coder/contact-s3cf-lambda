@@ -44,8 +44,7 @@ jobs:
       - name: Build backend (TypeScript -> dist/index.js)
         working-directory: backend
         run: |
-          npm init -y >/dev/null 2>&1 || true
-          npm i -D typescript >/dev/null 2>&1
+          npm install
           npx tsc -p tsconfig.json
 
       - name: Package Lambda code
@@ -57,7 +56,7 @@ jobs:
           zip -r ../function.zip .
           cd ..
 
-      # --- hello-api を先に作る（Lambda/APIの箱をCloudFormationで用意） ---
+      # hello-api を先に作る（Lambda/APIの箱をCloudFormationで用意） ---
       - name: Validate hello-api template
         run: aws cloudformation validate-template --template-body file://infra/hello-api.yaml
 
@@ -67,6 +66,20 @@ jobs:
             --stack-name hello-api-stack \
             --template-file infra/hello-api.yaml \
             --capabilities CAPABILITY_IAM
+
+      - name: Show CloudFormation events on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo "=== Recent stack events ==="
+          aws cloudformation describe-stack-events \
+            --stack-name hello-api-stack \
+            --max-items 25 || true
+          echo ""
+          echo "=== Stack status ==="
+          aws cloudformation describe-stacks \
+          --stack-name hello-api-stack \
+          --query "Stacks[0].StackStatus" || true
 
       # Lambda 関数コードの更新（上で作成した ZIP を反映）
       - name: Update HelloLambda code

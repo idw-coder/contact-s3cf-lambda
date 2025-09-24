@@ -1,7 +1,29 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Hello API (Lambda + API Gateway HTTP API)"
+Description: "Hello API (Lambda + API Gateway HTTP API) + Image Upload Bucket"
 
 Resources:
+
+  # 画像アップロード専用のS3バケットを新規作成
+  # 静的サイト用とは別のバケットで、セキュリティと管理を分離
+  # バケット名は CloudFormation が自動生成（例：hello-api-stack-imageuploadbucket-abc123def456）
+  # S3バケット名は全世界で一意である必要があるため、自動生成で名前衝突を回避
+  ImageUploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # BucketName を指定しない場合、CloudFormation が自動で一意な名前を生成
+      # 形式：{スタック名}-{リソース名}-{ランダム文字列}
+      # パブリックアクセスを完全にブロック（署名付きURLで制御）
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      # CORS設定：フロントエンドからの直接アップロードを許可
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ["*"]  # 本番では特定ドメインに制限推奨
+            AllowedMethods: [PUT, POST]  # アップロード用メソッド
+            AllowedHeaders: ["*"]
 
   # Lambda関数用のIAMロールを作成
   HelloLambdaRole:
@@ -17,6 +39,17 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      # 追加：S3への書き込み権限を付与
+      Policies:
+        - PolicyName: S3UploadPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject      # オブジェクトアップロード
+                  - s3:PutObjectAcl   # アクセス制御設定
+                Resource: !Sub "${ImageUploadBucket.Arn}/*"  # 画像バケット内のみ
 
   HelloLambda:
     Type: AWS::Lambda::Function
@@ -25,6 +58,14 @@ Resources:
       Runtime: nodejs20.x
       Handler: index.handler
       Role: !GetAtt HelloLambdaRole.Arn
+      # 環境変数：Lambdaコード内で使用するAWS設定
+      # CloudFormation が実際の値を自動で設定
+      Environment:
+        Variables:
+          # AWS_REGION は Lambda の予約キーワードのため設定不要（自動で利用可能）
+          # !Ref ImageUploadBucket で上で作成したバケットの実名が自動設定
+          # 例：hello-api-stack-imageuploadbucket-abc123def456
+          BUCKET_NAME: !Ref ImageUploadBucket
       
       # Code.ZipFile は「CloudFormation で Lambda を作成する際に必須」のため残しているだけです。
       # 実際のコードは GitHub Actions (update-function-code) により毎回上書きされます。
@@ -41,10 +82,10 @@ Resources:
     Properties:
       Name: HelloApi
       ProtocolType: HTTP
-      # CORS 設定
+      # CORS 設定：POSTメソッドも追加
       CorsConfiguration:
         AllowOrigins: ["*"]
-        AllowMethods: ["GET"]
+        AllowMethods: ["GET", "POST"]  # GETとPOSTの両方を許可
         AllowHeaders: ["*"]
 
   # API Gateway と Lambda を接続
@@ -56,11 +97,21 @@ Resources:
       IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloLambda.Arn}/invocations
       PayloadFormatVersion: "2.0"
 
+  # 既存のhelloエンドポイント（GET /hello）
   HelloRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HelloApi
       RouteKey: "GET /hello"
+      Target: !Sub "integrations/${HelloIntegration}"
+
+  # 新規追加：画像アップロード用エンドポイント（POST /upload）
+  # 署名付きURL生成用
+  UploadRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HelloApi
+      RouteKey: "POST /upload"
       Target: !Sub "integrations/${HelloIntegration}"
 
   # Lambda 関数を API Gateway から呼び出す権限を付与
@@ -83,3 +134,8 @@ Outputs:
   ApiEndpoint:
     Description: "Invoke URL"
     Value: !Sub "https://${HelloApi}.execute-api.${AWS::Region}.amazonaws.com"
+  
+  # 新規追加：画像バケット名を出力（デバッグ用）
+  ImageBucketName:
+    Description: "Image upload bucket name"
+    Value: !Ref ImageUploadBucket
