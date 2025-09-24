@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'  # CloudFormation の宣言
+Transform: AWS::Serverless-2016-10-31   # SAM を使う宣言
+Description: Local-only SAM template for hello-api
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 15
+    MemorySize: 256
+
+Resources:
+  # ローカル用の HTTP API（CORS はローカルのフロント想定）
+  LocalHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - http://localhost:3000
+          - https://localhost:3000
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Requested-With
+          - X-CSRF-TOKEN
+
+  # 1つの関数で /hello /upload /images を捌く（backend/index.ts を利用）
+  HelloApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/    # sam/ からの相対パスに注意
+      Handler: index.handler            # backend/index.ts の export 名に合わせる（export const handler = ...）
+      Events:
+        Hello:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref LocalHttpApi
+            Path: /hello
+            Method: GET
+        Upload:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref LocalHttpApi
+            Path: /upload
+            Method: POST
+        Images:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref LocalHttpApi
+            Path: /images
+            Method: GET
+    Metadata:
+      # TypeScript を esbuild でバンドル（SAM がやってくれる）
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - index.ts
+        Bundle: true
+        Minify: true
+        Sourcemap: true
+        Target: es2020
+        Platform: node
+        External:
+          - '@aws-sdk/*'               # v3 SDK を外部解決（実行環境の Node に任せる）
+
+Outputs:
+  LocalHttpApiUrl:
+    Value: !Sub "http://127.0.0.1:3001"
+    Description: "sam local start-api のURL（--port=3001 の想定）"

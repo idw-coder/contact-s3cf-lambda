@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Local-only SAM template for hello-api
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 15
+    MemorySize: 256
+Resources:
+  LocalHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+        - http://localhost:3000
+        - https://localhost:3000
+        AllowMethods:
+        - GET
+        - POST
+        - OPTIONS
+        AllowHeaders:
+        - Content-Type
+        - Authorization
+        - X-Requested-With
+        - X-CSRF-TOKEN
+  HelloApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: HelloApiFunction
+      Handler: index.handler
+      Events:
+        Hello:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: LocalHttpApi
+            Path: /hello
+            Method: GET
+        Upload:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: LocalHttpApi
+            Path: /upload
+            Method: POST
+        Images:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: LocalHttpApi
+            Path: /images
+            Method: GET
+      Environment:
+        Variables:
+          NODE_OPTIONS: ' --enable-source-maps'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Bundle: true
+        EntryPoints:
+        - index.ts
+        External:
+        - '@aws-sdk/*'
+        Minify: true
+        Platform: node
+        Sourcemap: true
+        Target: es2020
+      SamResourceId: HelloApiFunction
+Outputs:
+  LocalHttpApiUrl:
+    Value:
+      Fn::Sub: http://127.0.0.1:3001
+    Description: "sam local start-api \u306EURL\uFF08--port=3001 \u306E\u60F3\u5B9A\
+      \uFF09"

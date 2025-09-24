@@ -9,3 +9,6 @@ dist/
 # IDE
 .vscode/
 .idea/
+
+# SAM local config
+sam/env.json
